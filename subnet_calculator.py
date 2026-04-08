@@ -1,155 +1,174 @@
-"""
-Subnet Calculator - CPAN226 Network Programming Project
-A web-based subnet calculator built with Python and Streamlit.
-"""
+"""Web-based IPv4 subnet calculator using Flask."""
 
-import streamlit as st
 import ipaddress
+import math
+from flask import Flask, render_template, request
 
-
-def validate_ip(ip_str: str) -> bool:
-    """Validate if the given string is a valid IPv4 address."""
-    try:
-        ipaddress.ip_address(ip_str)
-        return True
-    except ValueError:
-        return False
-
-
-def cidr_to_subnet_mask(cidr: int) -> str:
-    """Convert CIDR notation to dotted decimal subnet mask."""
-    if cidr < 0 or cidr > 32:
-        return "Invalid"
-    mask = (0xFFFFFFFF << (32 - cidr)) & 0xFFFFFFFF
-    return ".".join(
-        str((mask >> (8 * (3 - i))) & 0xFF) for i in range(4)
-    )
+app = Flask(__name__)
 
 
 def subnet_mask_to_cidr(mask_str: str) -> int:
     """Convert dotted decimal subnet mask to CIDR notation."""
     try:
-        mask = ipaddress.ip_address(mask_str)
-        binary = bin(int(mask))[2:].zfill(32)
+        mask_int = int(ipaddress.IPv4Address(mask_str))
+        binary = format(mask_int, "032b")
+        if "01" in binary:
+            return -1
         return binary.count("1")
-    except (ValueError, ipaddress.AddressValueError):
+    except ipaddress.AddressValueError:
         return -1
 
 
-def calculate_subnet(ip_str: str, cidr: int):
-    """Calculate all subnet information for the given IP and CIDR."""
+def _hosts_per_subnet(prefix_len: int) -> int:
+    size = 2 ** (32 - prefix_len)
+    return max(0, size - 2)
+
+
+def _derive_new_prefix(base_prefix: int, mode: str, raw_value: str):
+    """
+    Determine new subnet prefix from selected subnetting mode.
+
+    Modes:
+    - subnets: number of required subnets
+    - host_bits: number of host bits in each subnet
+    - hosts_per_subnet: required usable hosts in each subnet
+    """
     try:
-        network = ipaddress.ip_network(f"{ip_str}/{cidr}", strict=False)
-    except ValueError as e:
-        return None, str(e)
+        value = int(raw_value)
+    except ValueError:
+        return None, "Selected value must be an integer."
 
-    results = {
-        "network_address": str(network.network_address),
-        "broadcast_address": str(network.broadcast_address),
-        "subnet_mask": str(network.netmask),
-        "wildcard_mask": str(network.hostmask),
-        "cidr_notation": f"{network.network_address}/{cidr}",
-        "total_hosts": network.num_addresses,
-        "usable_hosts": max(0, network.num_addresses - 2),
-        "first_host": str(list(network.hosts())[0]) if network.num_addresses > 1 else "N/A",
-        "last_host": str(list(network.hosts())[-1]) if network.num_addresses > 1 else "N/A",
-        "ip_class": get_ip_class(ip_str),
-        "subnet_binary": format(int(network.netmask), "032b"),
-        "ip_binary": format(int(ipaddress.ip_address(ip_str)), "032b"),
+    if mode == "subnets":
+        if value < 1:
+            return None, "Number of subnets must be at least 1."
+        borrow_bits = math.ceil(math.log2(value))
+        new_prefix = base_prefix + borrow_bits
+        if new_prefix > 32:
+            return None, "Cannot create that many subnets from this base network."
+        return new_prefix, None
+
+    if mode == "host_bits":
+        if value < 0 or value > 32:
+            return None, "Host bits must be between 0 and 32."
+        new_prefix = 32 - value
+        if new_prefix < base_prefix:
+            return None, "Host bits are too large for the selected base network."
+        return new_prefix, None
+
+    if mode == "hosts_per_subnet":
+        if value < 0:
+            return None, "Hosts per subnet cannot be negative."
+        host_bits = math.ceil(math.log2(value + 2)) if value > 0 else 1
+        new_prefix = 32 - host_bits
+        if new_prefix < base_prefix:
+            return None, "Base network is too small for requested hosts per subnet."
+        return new_prefix, None
+
+    return None, "Invalid subnetting mode."
+
+
+def calculate_subnets(ip_str: str, base_prefix: int, mode: str, value: str):
+    try:
+        base_network = ipaddress.ip_network(f"{ip_str}/{base_prefix}", strict=False)
+    except ValueError as exc:
+        return None, str(exc)
+
+    new_prefix, error = _derive_new_prefix(base_prefix, mode, value)
+    if error:
+        return None, error
+    if new_prefix < base_network.prefixlen:
+        return None, "New subnet prefix cannot be less specific than base prefix."
+
+    subnet_list = list(base_network.subnets(new_prefix=new_prefix))
+    total_subnets = len(subnet_list)
+    if total_subnets > 4096:
+        return None, "Too many subnets to display. Please use a smaller split."
+
+    rows = []
+    for subnet in subnet_list:
+        hosts = list(subnet.hosts())
+        first_host = str(hosts[0]) if hosts else "N/A"
+        last_host = str(hosts[-1]) if hosts else "N/A"
+        rows.append(
+            {
+                "network_address": str(subnet.network_address),
+                "broadcast_address": str(subnet.broadcast_address),
+                "first_usable_ip": first_host,
+                "last_usable_ip": last_host,
+                "total_hosts": _hosts_per_subnet(subnet.prefixlen),
+            }
+        )
+
+    return {
+        "new_subnet_mask": str(ipaddress.ip_network(f"0.0.0.0/{new_prefix}").netmask),
+        "total_subnets": total_subnets,
+        "subnets": rows,
+    }, None
+
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    error = None
+    results = None
+    form = {
+        "network_address": "192.168.1.0",
+        "mask_mode": "cidr",
+        "prefix_length": "24",
+        "network_mask": "255.255.255.0",
+        "calc_mode": "subnets",
+        "num_subnets": "4",
+        "host_bits": "6",
+        "hosts_per_subnet": "62",
     }
-    return results, None
 
+    if request.method == "POST":
+        form["network_address"] = request.form.get("network_address", "").strip()
+        form["mask_mode"] = request.form.get("mask_mode", "cidr")
+        form["prefix_length"] = request.form.get("prefix_length", "24").strip()
+        form["network_mask"] = request.form.get("network_mask", "255.255.255.0").strip()
+        form["calc_mode"] = request.form.get("calc_mode", "subnets")
+        form["num_subnets"] = request.form.get("num_subnets", "1").strip()
+        form["host_bits"] = request.form.get("host_bits", "8").strip()
+        form["hosts_per_subnet"] = request.form.get("hosts_per_subnet", "2").strip()
 
-def get_ip_class(ip_str: str) -> str:
-    """Determine the class of an IP address (classful addressing)."""
-    first_octet = int(ip_str.split(".")[0])
-    if first_octet < 128:
-        return "Class A"
-    elif first_octet < 192:
-        return "Class B"
-    elif first_octet < 224:
-        return "Class C"
-    elif first_octet < 240:
-        return "Class D (Multicast)"
-    else:
-        return "Class E (Reserved)"
+        try:
+            ipaddress.IPv4Address(form["network_address"])
+        except ipaddress.AddressValueError:
+            error = "Please enter a valid IPv4 address."
+            return render_template("index.html", error=error, results=results, form=form)
 
-
-def main():
-    st.set_page_config(
-        page_title="Subnet Calculator",
-        page_icon="🌐",
-        layout="centered",
-    )
-
-    st.title("🌐 Subnet Calculator")
-    st.markdown("*CPAN226 Network Programming Project*")
-    st.divider()
-
-    col1, col2 = st.columns([1, 1])
-
-    with col1:
-        ip_input = st.text_input(
-            "IP Address",
-            value="192.168.1.0",
-            placeholder="e.g., 192.168.1.0",
-            help="Enter a valid IPv4 address",
-        )
-
-    with col2:
-        mask_option = st.radio(
-            "Mask input",
-            ["CIDR (/)", "Subnet Mask"],
-            horizontal=True,
-        )
-
-    if mask_option == "CIDR (/)":
-        cidr = st.slider("CIDR Prefix", 0, 32, 24)
-    else:
-        mask_input = st.text_input(
-            "Subnet Mask",
-            value="255.255.255.0",
-            placeholder="e.g., 255.255.255.0",
-        )
-        cidr = subnet_mask_to_cidr(mask_input) if mask_input else 24
-        if cidr < 0 and mask_input:
-            st.error("Invalid subnet mask. Use format: 255.255.255.0")
-
-    if st.button("Calculate", type="primary"):
-        if not validate_ip(ip_input):
-            st.error("❌ Please enter a valid IPv4 address")
-        elif cidr < 0 or cidr > 32:
-            st.error("❌ Invalid CIDR or subnet mask")
+        if form["mask_mode"] == "mask":
+            base_prefix = subnet_mask_to_cidr(form["network_mask"])
+            if base_prefix < 0:
+                error = "Invalid subnet mask. Example: 255.255.255.0"
+                return render_template("index.html", error=error, results=results, form=form)
         else:
-            results, error = calculate_subnet(ip_input, cidr)
-            if error:
-                st.error(f"❌ {error}")
-            else:
-                st.success("✅ Subnet calculated successfully!")
-                st.divider()
+            try:
+                base_prefix = int(form["prefix_length"])
+                if not 0 <= base_prefix <= 32:
+                    raise ValueError
+            except ValueError:
+                error = "Network prefix length must be a number between 0 and 32."
+                return render_template("index.html", error=error, results=results, form=form)
 
-                st.subheader("📊 Results")
+        if form["calc_mode"] == "subnets":
+            input_value = form["num_subnets"]
+        elif form["calc_mode"] == "host_bits":
+            input_value = form["host_bits"]
+        else:
+            input_value = form["hosts_per_subnet"]
 
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.metric("Network Address", results["network_address"])
-                    st.metric("Broadcast Address", results["broadcast_address"])
-                    st.metric("First Usable Host", results["first_host"])
-                    st.metric("Last Usable Host", results["last_host"])
+        results, calc_error = calculate_subnets(
+            form["network_address"],
+            base_prefix,
+            form["calc_mode"],
+            input_value,
+        )
+        if calc_error:
+            error = calc_error
 
-                with col_b:
-                    st.metric("Subnet Mask", results["subnet_mask"])
-                    st.metric("Wildcard Mask", results["wildcard_mask"])
-                    st.metric("Total Hosts", results["total_hosts"])
-                    st.metric("Usable Hosts", results["usable_hosts"])
+    return render_template("index.html", error=error, results=results, form=form)
 
-                st.info(f"**CIDR Notation:** {results['cidr_notation']} | **IP Class:** {results['ip_class']}")
-
-                with st.expander("🔢 Binary Representation"):
-                    st.code(f"IP Address:  {results['ip_binary']}\nSubnet Mask: {results['subnet_binary']}", language=None)
-
-    st.divider()
-    st.caption("Built with Python & Streamlit | CPAN226 Network Programming")
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=5000, debug=True)

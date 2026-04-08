@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Subnet Calculator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <h1>Online IPv4 Subnet Calculator</h1>
+    <p class="subtitle">CPAN226 Network Programming</p>
+
+    <form method="post" class="card">
+      <label>Network Address</label>
+      <input name="network_address" type="text" value="{{ form.network_address }}" placeholder="192.168.1.0" required />
+
+      <label>Mask Input Type</label>
+      <select name="mask_mode">
+        <option value="cidr" {% if form.mask_mode == "cidr" %}selected{% endif %}>CIDR</option>
+        <option value="mask" {% if form.mask_mode == "mask" %}selected{% endif %}>Subnet Mask</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label>Network Prefix Length (0-32)</label>
+          <input name="prefix_length" type="number" min="0" max="32" value="{{ form.prefix_length }}" />
+        </div>
+        <div>
+          <label>Network Mask</label>
+          <input name="network_mask" type="text" value="{{ form.network_mask }}" placeholder="255.255.255.0" />
+        </div>
+      </div>
+
+      <label>Subnetting Input Type</label>
+      <select name="calc_mode">
+        <option value="subnets" {% if form.calc_mode == "subnets" %}selected{% endif %}>Number of subnets</option>
+        <option value="host_bits" {% if form.calc_mode == "host_bits" %}selected{% endif %}>Number of bits for hosts</option>
+        <option value="hosts_per_subnet" {% if form.calc_mode == "hosts_per_subnet" %}selected{% endif %}>Number of hosts in each subnetwork</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label>Number of subnets</label>
+          <input name="num_subnets" type="number" min="1" value="{{ form.num_subnets }}" />
+        </div>
+        <div>
+          <label>Number of bits for hosts</label>
+          <input name="host_bits" type="number" min="0" max="32" value="{{ form.host_bits }}" />
+        </div>
+      </div>
+      <label>Number of hosts in each subnetwork</label>
+      <input name="hosts_per_subnet" type="number" min="0" value="{{ form.hosts_per_subnet }}" />
+
+      <button type="submit">Calculate</button>
+    </form>
+
+    {% if error %}
+      <div class="alert error">{{ error }}</div>
+    {% endif %}
+
+    {% if results %}
+      <section class="card">
+        <h2>Results</h2>
+        <div class="grid">
+          <div><strong>New subnet mask:</strong> {{ results.new_subnet_mask }}</div>
+          <div><strong>Total number of subnets:</strong> {{ results.total_subnets }}</div>
+        </div>
+
+        <h3>Subnet Details</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Network address</th>
+                <th>Broadcast address</th>
+                <th>First usable IP</th>
+                <th>Last usable IP</th>
+                <th>Total hosts in subnet</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for subnet in results.subnets %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ subnet.network_address }}</td>
+                <td>{{ subnet.broadcast_address }}</td>
+                <td>{{ subnet.first_usable_ip }}</td>
+                <td>{{ subnet.last_usable_ip }}</td>
+                <td>{{ subnet.total_hosts }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+  </main>
+</body>
+</html>
