@@ -21,7 +21,7 @@
 4. Results and Discussion
 5. Conclusion
 6. References (IEEE Style)
-7. Appendices (Optional)
+
 
 ---
 
@@ -62,7 +62,7 @@ The project follows a client-server web architecture:
 - **Web Application Server (Python Flask):** Processes user requests and performs subnet calculations.
 - **Calculation Module (IPv4 Subnet Logic):** Computes subnet mask, subnet list, host ranges, and broadcast addresses.
 
-For the final submission, a topology/architecture figure should be created in Visio (or equivalent) and include:
+For the final submission, a topology/architecture figure would be created in Visio (or equivalent) and include:
 
 - User PC/Laptop icon
 - Browser/Application layer
@@ -108,6 +108,7 @@ For the final submission, a topology/architecture figure should be created in Vi
 5. Add styling in `static/style.css`.
 6. Test with multiple subnet input scenarios.
 7. Run locally using:
+   - `pip install -r requirements.txt`
    - `python subnet_calculator.py`
    - Access via `http://localhost:5000`
 
@@ -123,9 +124,9 @@ The implemented web application produces subnetting results in real time after u
 - First and last usable IP addresses per subnet
 - Total hosts per subnet
 
-### Suggested Screenshots for Final Submission
+### Screenshots for Final Submission
 
-Include screenshots of:
+Included screenshots of:
 
 1. Input interface before calculation
 2. Successful calculation output table
@@ -177,8 +178,3 @@ This project helped the team strengthen understanding of:
 
 ---
 
-## 7. Appendices (Optional)
-
-- Appendix A: Additional test cases and expected outputs
-- Appendix B: Error case screenshots
-- Appendix C: Architecture diagram (Visio export)
