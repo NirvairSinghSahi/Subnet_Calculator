@@ -62,13 +62,6 @@ The project follows a client-server web architecture:
 - **Web Application Server (Python Flask):** Processes user requests and performs subnet calculations.
 - **Calculation Module (IPv4 Subnet Logic):** Computes subnet mask, subnet list, host ranges, and broadcast addresses.
 
-For the final submission, a topology/architecture figure would be created in Visio (or equivalent) and include:
-
-- User PC/Laptop icon
-- Browser/Application layer
-- Web server/process icon
-- Data flow arrows between components
-- Labels for each module and communication path
 
 ### 3.2 Functional Modules and Functionalities
 
