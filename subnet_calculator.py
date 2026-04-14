@@ -101,6 +101,7 @@ def calculate_subnets(ip_str: str, base_prefix: int, mode: str, value: str):
 
     return {
         "new_subnet_mask": str(ipaddress.ip_network(f"0.0.0.0/{new_prefix}").netmask),
+        "new_cidr_prefix": f"/{new_prefix}",
         "total_subnets": total_subnets,
         "subnets": rows,
     }, None
