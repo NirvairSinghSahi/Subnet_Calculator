@@ -36,7 +36,7 @@
       <select name="calc_mode">
         <option value="subnets" {% if form.calc_mode == "subnets" %}selected{% endif %}>Number of subnets</option>
         <option value="host_bits" {% if form.calc_mode == "host_bits" %}selected{% endif %}>Number of bits for hosts</option>
-        <option value="hosts_per_subnet" {% if form.calc_mode == "hosts_per_subnet" %}selected{% endif %}>Number of hosts in each subnetwork</option>
+        <option value="hosts_per_subnet" {% if form.calc_mode == "hosts_per_subnet" %}selected{% endif %}>Number of usable hosts in each subnetwork</option>
       </select>
 
       <div class="row">
@@ -49,7 +49,7 @@
           <input name="host_bits" type="number" min="0" max="32" value="{{ form.host_bits }}" />
         </div>
       </div>
-      <label>Number of hosts in each subnetwork</label>
+      <label>Number of usable hosts in each subnetwork</label>
       <input name="hosts_per_subnet" type="number" min="0" value="{{ form.hosts_per_subnet }}" />
 
       <button type="submit">Calculate</button>
